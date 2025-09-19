@@ -26,68 +26,40 @@
   </header>
 
   <main>
-    <!-- DASHBOARD -->
     <section id="section-dashboard" class="section visible">
       <h2>Dashboard</h2>
-
-      <div class="filters row" style="flex-wrap:wrap">
-        <label>Grupo</label>
-        <select id="filtro-grupo"><option value="">Todos</option></select>
-        <label>Desde</label>
-        <input id="rep-from" type="date"/>
-        <label>Hasta</label>
-        <input id="rep-to" type="date"/>
-        <button id="btn-aplicar-filtros">Aplicar filtros</button>
-      </div>
-
       <div class="cards">
         <div class="card"><div class="label">Total estudiantes</div><div id="m-total-estudiantes" class="value">-</div></div>
         <div class="card"><div class="label">Marcados</div><div id="m-total-marcados" class="value">-</div></div>
         <div class="card"><div class="label">Presentes</div><div id="m-presentes" class="value">-</div></div>
         <div class="card"><div class="label">Salidas</div><div id="m-salidas" class="value">-</div></div>
       </div>
-
       <div class="grid-2">
         <div class="panel">
           <h3>Estudiantes por grupo</h3>
           <canvas id="chart-alumnos"></canvas>
         </div>
         <div class="panel">
-          <h3>Asistencia/Ausencia por grupo (rango)</h3>
+          <h3>Asistencia/Ausencia por grupo</h3>
           <canvas id="chart-asistencia"></canvas>
         </div>
       </div>
-
       <h3>Presentes ahora</h3>
       <table>
         <thead><tr><th>Nombre</th><th>Cédula</th><th>Grupo</th><th>Ingreso</th></tr></thead>
         <tbody id="tabla-presentes"></tbody>
       </table>
-
-      <h3>Reportes (rango de fechas)</h3>
-      <div class="row" style="flex-wrap:wrap">
-        <button id="btn-ver-reporte">Ver reporte</button>
-        <button id="btn-export-csv" class="secondary">Descargar CSV</button>
-        <button id="btn-export-xlsx" class="secondary">Descargar Excel</button>
-      </div>
-      <table style="margin-top:12px">
-        <thead><tr><th>Evento</th><th>Nombre</th><th>Grupo</th><th>Cédula</th><th>Ingreso</th><th>Salida</th><th>Duración (min)</th></tr></thead>
-        <tbody id="tabla-reporte"></tbody>
-      </table>
     </section>
 
-    <!-- INGRESO -->
     <section id="section-ingreso" class="section">
       <h2>Ingreso</h2>
       <div class="grid-2">
         <div>
           <h3>Escanear QR</h3>
           <video id="video-ingreso" autoplay playsinline muted></video>
-          <div class="hint" id="qr-hint">Si tu navegador soporta <code>BarcodeDetector</code>, el QR se leerá automáticamente.</div>
           <div class="status" id="status-ingreso"></div>
           <button id="btn-start-ingreso">Iniciar cámara</button>
           <button id="btn-stop-ingreso" class="secondary">Detener cámara</button>
-
           <h4>Últimos 10 ingresos</h4>
           <ul id="ultimos-ingresos" class="last-list"></ul>
         </div>
@@ -105,7 +77,6 @@
       </div>
     </section>
 
-    <!-- SALIDA -->
     <section id="section-salida" class="section">
       <h2>Salida</h2>
       <div class="grid-2">
@@ -115,8 +86,7 @@
           <div class="status" id="status-salida"></div>
           <button id="btn-start-salida">Iniciar cámara</button>
           <button id="btn-stop-salida" class="secondary">Detener cámara</button>
-
-          <h4>Últimas 10 salidas</h4>
+          <h4>Últimos 10 salidas</h4>
           <ul id="ultimos-salidas" class="last-list"></ul>
         </div>
         <div>
@@ -129,7 +99,6 @@
       </div>
     </section>
 
-    <!-- EDITAR -->
     <section id="section-editar" class="section">
       <h2>Editar</h2>
       <div class="grid-2">
@@ -137,42 +106,18 @@
           <h3>Estudiantes</h3>
           <div class="row">
             <input id="buscar-estudiantes" placeholder="Buscar por nombre, cédula" />
-            <select id="filtro-estudiantes-grupo"><option value="">Todos los grupos</option></select>
             <button id="btn-buscar-estudiantes" class="secondary">Buscar</button>
           </div>
           <div class="row" style="margin-top:8px; flex-wrap: wrap; gap:12px">
             <input id="csv-file" type="file" accept=".csv" />
             <button id="btn-importar-csv">Importar CSV</button>
             <button id="btn-descargar-plantilla" class="secondary">Plantilla CSV</button>
-            <button id="btn-generar-qrs-lista">QRs (lista mostrada)</button>
             <button id="btn-generar-qrs-seleccion">QRs (seleccionados)</button>
-            <a href="/api/export/students.csv" class="secondary" style="text-decoration:none"><button class="secondary">Descargar estudiantes CSV</button></a>
           </div>
           <table>
             <thead><tr><th><input type="checkbox" id="chk-all"/></th><th>Nombre</th><th>Grupo</th><th>Cédula</th><th>Acciones</th></tr></thead>
             <tbody id="tabla-estudiantes"></tbody>
           </table>
-
-          <h4>Nuevo / Editar</h4>
-          <div class="form">
-            <input id="st-id" type="hidden" />
-            <label>Nombre</label>
-            <input id="st-nombre" />
-            <label>Cédula</label>
-            <input id="st-cedula" />
-            <label>Email</label>
-            <input id="st-email" />
-            <label>Teléfono</label>
-            <input id="st-telefono" />
-            <label>Grupo</label>
-            <input id="st-grupo" placeholder="Ej: 10-A" />
-            <label>Foto de perfil (opcional)</label>
-            <input id="st-foto" type="file" accept="image/*" />
-            <div class="row">
-              <button id="btn-guardar-student">Guardar</button>
-              <button id="btn-limpiar-student" class="secondary">Limpiar</button>
-            </div>
-          </div>
         </div>
         <div>
           <h3>Eventos</h3>
@@ -192,7 +137,6 @@
       </div>
     </section>
 
-    <!-- USUARIOS (solo superadmin) -->
     <section id="section-usuarios" class="section">
       <h2>Usuarios</h2>
       <table>
@@ -220,7 +164,6 @@
       </div>
     </section>
 
-    <!-- PERFIL -->
     <section id="section-perfil" class="section">
       <h2>Perfil</h2>
       <div class="form">
@@ -228,7 +171,6 @@
         <input id="org-nombre" placeholder="Mi institución" />
         <button id="btn-guardar-perfil">Guardar</button>
       </div>
-      <p class="hint">Solo el superadmin verá la pestaña <b>Usuarios</b>. Desde allí puedes marcar qué usuarios tienen permiso de <b>borrar registros</b> de asistencia.</p>
     </section>
   </main>
 

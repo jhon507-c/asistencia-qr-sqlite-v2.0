@@ -1,15 +1,12 @@
 import Database from 'better-sqlite3';
 import fs from 'fs';
 
-// Asegurar directorios persistentes
 fs.mkdirSync('storage', { recursive: true });
 fs.mkdirSync('uploads', { recursive: true });
 
 export const db = new Database('storage/data.sqlite');
 db.pragma('journal_mode = WAL');
-
-echoPragma();
-function echoPragma(){ try{ db.pragma('foreign_keys = ON'); }catch{} }
+try{ db.pragma('foreign_keys = ON'); }catch{}
 
 export function initDb(){
   db.exec(`
@@ -56,7 +53,6 @@ export function initDb(){
     );
   `);
 
-  // Migraciones ligeras para columnas nuevas
   try{ db.exec(`ALTER TABLE students ADD COLUMN grupo TEXT`); }catch{}
   try{ db.exec(`ALTER TABLE students ADD COLUMN foto TEXT`); }catch{}
   try{ db.exec(`ALTER TABLE users ADD COLUMN can_delete INTEGER NOT NULL DEFAULT 0`); }catch{}
@@ -68,8 +64,6 @@ export function initDb(){
 function seedRootUser(){
   const root = db.prepare('SELECT * FROM users WHERE username=?').get('root');
   if(!root){
-    // hash precomputado de @dM!n!25 usando bcryptjs equivalente? No usamos bcryptjs para evitar nativo: generamos en server con bcryptjs.
-    // Aquí insertamos temporalmente un marcador y el server lo actualizará si detecta placeholder.
     const placeholder = 'PLACEHOLDER_HASH_TO_BE_SET_AT_RUNTIME';
     db.prepare('INSERT INTO users(username,password_hash,role,can_delete,created_at) VALUES(?,?,?,?,?)')
       .run('root', placeholder, 'superadmin', 1, new Date().toISOString());

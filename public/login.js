@@ -7,15 +7,9 @@ async function login(){
     const res = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ username:u, password:p }) });
     const data = await res.json();
     if(!res.ok) throw new Error(data.error||'Error');
-    s.textContent = 'Bienvenido'; s.classList.add('ok');
     location.href = '/';
   }catch(e){ s.textContent = e.message; s.classList.add('err'); }
 }
 
 document.getElementById('btn-login').addEventListener('click', login);
 ['username','password'].forEach(id=> document.getElementById(id).addEventListener('keydown', (e)=>{ if(e.key==='Enter') login(); }));
-
-// Si ya está logueado, redirige
-(async function(){
-  try{ const me = await fetch('/api/auth/me', { credentials:'include' }); if(me.ok) location.href = '/'; }catch{}
-})();
