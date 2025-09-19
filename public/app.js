@@ -75,7 +75,7 @@ async function renderCharts(){
     const presentes = aByGroup.map(x=>x.presentes); const ausentes = aByGroup.map(x=>x.ausentes);
     const ctx2 = document.getElementById('chart-asistencia').getContext('2d');
     if(chartAsistencia) chartAsistencia.destroy();
-    chartAsistencia = new Chart(ctx2, { type:'bar', data:{ labels:labels2, datasets:[{label:'Presentes', data:presentes, backgroundColor:'#16a34a'},{label:'Ausentes', data:ausentes, backgroundColor:'#6b9080'}] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{ stacked:true }, y:{ stacked:true } } });
+    chartAsistencia = new Chart(ctx2, { type:'bar', data:{ labels:labels2, datasets:[{label:'Presentes', data:presentes, backgroundColor:'#16a34a'},{label:'Ausentes', data:ausentes, backgroundColor:'#6b9080'}] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{ stacked:true }, y:{ stacked:true } } } });
   }
 }
 
