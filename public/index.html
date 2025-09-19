@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asistencia - QR / Nombre / Cédula</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <img src="https://ipadavid.edu.pa/wp-content/uploads/2025/08/logoSVG50px.svg" alt="Logo" class="logo"/>
+      <h1>Control de Asistencia</h1>
+    </div>
+    <nav>
+      <button data-section="dashboard" class="active">Dashboard</button>
+      <button data-section="ingreso">Ingreso</button>
+      <button data-section="salida">Salida</button>
+      <button data-section="editar">Editar</button>
+      <button data-section="usuarios" id="tab-usuarios" style="display:none">Usuarios</button>
+      <button data-section="perfil">Perfil</button>
+      <button id="btn-logout" class="secondary">Salir</button>
+    </nav>
+    <div id="active-event" class="badge">Evento activo: <span id="active-event-name">Cargando...</span></div>
+  </header>
+
+  <main>
+    <!-- DASHBOARD -->
+    <section id="section-dashboard" class="section visible">
+      <h2>Dashboard</h2>
+
+      <div class="filters row" style="flex-wrap:wrap">
+        <label>Grupo</label>
+        <select id="filtro-grupo"><option value="">Todos</option></select>
+        <label>Desde</label>
+        <input id="rep-from" type="date"/>
+        <label>Hasta</label>
+        <input id="rep-to" type="date"/>
+        <button id="btn-aplicar-filtros">Aplicar filtros</button>
+      </div>
+
+      <div class="cards">
+        <div class="card"><div class="label">Total estudiantes</div><div id="m-total-estudiantes" class="value">-</div></div>
+        <div class="card"><div class="label">Marcados</div><div id="m-total-marcados" class="value">-</div></div>
+        <div class="card"><div class="label">Presentes</div><div id="m-presentes" class="value">-</div></div>
+        <div class="card"><div class="label">Salidas</div><div id="m-salidas" class="value">-</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Estudiantes por grupo</h3>
+          <canvas id="chart-alumnos"></canvas>
+        </div>
+        <div class="panel">
+          <h3>Asistencia/Ausencia por grupo (rango)</h3>
+          <canvas id="chart-asistencia"></canvas>
+        </div>
+      </div>
+
+      <h3>Presentes ahora</h3>
+      <table>
+        <thead><tr><th>Nombre</th><th>Cédula</th><th>Grupo</th><th>Ingreso</th></tr></thead>
+        <tbody id="tabla-presentes"></tbody>
+      </table>
+
+      <h3>Reportes (rango de fechas)</h3>
+      <div class="row" style="flex-wrap:wrap">
+        <button id="btn-ver-reporte">Ver reporte</button>
+        <button id="btn-export-csv" class="secondary">Descargar CSV</button>
+        <button id="btn-export-xlsx" class="secondary">Descargar Excel</button>
+      </div>
+      <table style="margin-top:12px">
+        <thead><tr><th>Evento</th><th>Nombre</th><th>Grupo</th><th>Cédula</th><th>Ingreso</th><th>Salida</th><th>Duración (min)</th></tr></thead>
+        <tbody id="tabla-reporte"></tbody>
+      </table>
+    </section>
+
+    <!-- INGRESO -->
+    <section id="section-ingreso" class="section">
+      <h2>Ingreso</h2>
+      <div class="grid-2">
+        <div>
+          <h3>Escanear QR</h3>
+          <video id="video-ingreso" autoplay playsinline muted></video>
+          <div class="hint" id="qr-hint">Si tu navegador soporta <code>BarcodeDetector</code>, el QR se leerá automáticamente.</div>
+          <div class="status" id="status-ingreso"></div>
+          <button id="btn-start-ingreso">Iniciar cámara</button>
+          <button id="btn-stop-ingreso" class="secondary">Detener cámara</button>
+
+          <h4>Últimos 10 ingresos</h4>
+          <ul id="ultimos-ingresos" class="last-list"></ul>
+        </div>
+        <div>
+          <h3>Ingreso manual</h3>
+          <label>Cédula</label>
+          <input id="cedula-ingreso" placeholder="Ej: 12345678" />
+          <label>Nombre (si no existe)</label>
+          <input id="nombre-ingreso" placeholder="Ej: Ana Pérez" />
+          <label>Grupo (si no existe)</label>
+          <input id="grupo-ingreso" placeholder="Ej: 10-A" />
+          <button id="btn-registrar-ingreso">Registrar ingreso</button>
+          <div class="status" id="status-ingreso-manual"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SALIDA -->
+    <section id="section-salida" class="section">
+      <h2>Salida</h2>
+      <div class="grid-2">
+        <div>
+          <h3>Escanear QR</h3>
+          <video id="video-salida" autoplay playsinline muted></video>
+          <div class="status" id="status-salida"></div>
+          <button id="btn-start-salida">Iniciar cámara</button>
+          <button id="btn-stop-salida" class="secondary">Detener cámara</button>
+
+          <h4>Últimas 10 salidas</h4>
+          <ul id="ultimos-salidas" class="last-list"></ul>
+        </div>
+        <div>
+          <h3>Salida manual</h3>
+          <label>Cédula</label>
+          <input id="cedula-salida" placeholder="Ej: 12345678" />
+          <button id="btn-registrar-salida">Registrar salida</button>
+          <div class="status" id="status-salida-manual"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDITAR -->
+    <section id="section-editar" class="section">
+      <h2>Editar</h2>
+      <div class="grid-2">
+        <div>
+          <h3>Estudiantes</h3>
+          <div class="row">
+            <input id="buscar-estudiantes" placeholder="Buscar por nombre, cédula" />
+            <select id="filtro-estudiantes-grupo"><option value="">Todos los grupos</option></select>
+            <button id="btn-buscar-estudiantes" class="secondary">Buscar</button>
+          </div>
+          <div class="row" style="margin-top:8px; flex-wrap: wrap; gap:12px">
+            <input id="csv-file" type="file" accept=".csv" />
+            <button id="btn-importar-csv">Importar CSV</button>
+            <button id="btn-descargar-plantilla" class="secondary">Plantilla CSV</button>
+            <button id="btn-generar-qrs-lista">QRs (lista mostrada)</button>
+            <button id="btn-generar-qrs-seleccion">QRs (seleccionados)</button>
+            <a href="/api/export/students.csv" class="secondary" style="text-decoration:none"><button class="secondary">Descargar estudiantes CSV</button></a>
+          </div>
+          <table>
+            <thead><tr><th><input type="checkbox" id="chk-all"/></th><th>Nombre</th><th>Grupo</th><th>Cédula</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-estudiantes"></tbody>
+          </table>
+
+          <h4>Nuevo / Editar</h4>
+          <div class="form">
+            <input id="st-id" type="hidden" />
+            <label>Nombre</label>
+            <input id="st-nombre" />
+            <label>Cédula</label>
+            <input id="st-cedula" />
+            <label>Email</label>
+            <input id="st-email" />
+            <label>Teléfono</label>
+            <input id="st-telefono" />
+            <label>Grupo</label>
+            <input id="st-grupo" placeholder="Ej: 10-A" />
+            <label>Foto de perfil (opcional)</label>
+            <input id="st-foto" type="file" accept="image/*" />
+            <div class="row">
+              <button id="btn-guardar-student">Guardar</button>
+              <button id="btn-limpiar-student" class="secondary">Limpiar</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3>Eventos</h3>
+          <table>
+            <thead><tr><th>Nombre</th><th>Fecha</th><th>Activo</th><th>Acciones</th></tr></thead>
+            <tbody id="tabla-eventos"></tbody>
+          </table>
+          <h4>Nuevo evento</h4>
+          <div class="form">
+            <label>Nombre</label>
+            <input id="ev-nombre" placeholder="Ej: Jornada de inducción" />
+            <label>Fecha</label>
+            <input id="ev-fecha" type="date" />
+            <button id="btn-crear-evento">Crear</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- USUARIOS (solo superadmin) -->
+    <section id="section-usuarios" class="section">
+      <h2>Usuarios</h2>
+      <table>
+        <thead><tr><th>Usuario</th><th>Rol</th><th>Puede borrar</th><th>Acciones</th></tr></thead>
+        <tbody id="tabla-usuarios"></tbody>
+      </table>
+      <h4>Nuevo / Editar</h4>
+      <div class="form">
+        <input id="usr-id" type="hidden" />
+        <label>Usuario</label>
+        <input id="usr-username" />
+        <label>Contraseña</label>
+        <input id="usr-password" type="password" />
+        <label>Rol</label>
+        <select id="usr-role">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+          <option value="superadmin">superadmin</option>
+        </select>
+        <label><input type="checkbox" id="usr-can-delete"/> Permiso para borrar asistencia</label>
+        <div class="row">
+          <button id="btn-guardar-usuario">Guardar</button>
+          <button id="btn-limpiar-usuario" class="secondary">Limpiar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PERFIL -->
+    <section id="section-perfil" class="section">
+      <h2>Perfil</h2>
+      <div class="form">
+        <label>Nombre de la organización</label>
+        <input id="org-nombre" placeholder="Mi institución" />
+        <button id="btn-guardar-perfil">Guardar</button>
+      </div>
+      <p class="hint">Solo el superadmin verá la pestaña <b>Usuarios</b>. Desde allí puedes marcar qué usuarios tienen permiso de <b>borrar registros</b> de asistencia.</p>
+    </section>
+  </main>
+
+  <footer>
+    <small>Hecho con ❤️ — Demo local</small>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
