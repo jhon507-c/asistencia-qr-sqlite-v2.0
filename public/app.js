@@ -87,11 +87,11 @@ async function loadEstudiantes(){
   const students = await api('/api/students?search=' + encodeURIComponent(search));
   tablaEstudiantes.innerHTML = students.map(st => `
     <tr>
-      <td><input type="checkbox" data-id="${st.id}" /></td>
-      <td>${st.nombre}</td>
-      <td>${st.grupo}</td>
-      <td>${st.cedula}</td>
-      <td>
+      <td data-label="Seleccionar"><input type="checkbox" data-id="${st.id}" /></td>
+      <td data-label="Nombre">${st.nombre}</td>
+      <td data-label="Grupo">${st.grupo}</td>
+      <td data-label="Cédula">${st.cedula}</td>
+      <td data-label="Acciones">
         <button data-action="qr" data-nombre="${st.nombre}" data-cedula="${st.cedula}" class="secondary small">QR</button>
         <button data-action="edit" data-id="${st.id}" class="secondary small">Editar</button>
         <button data-action="delete" data-id="${st.id}" class="danger small">Borrar</button>
@@ -208,7 +208,19 @@ document.getElementById('btn-guardar-estudiante')?.addEventListener('click', asy
 
 // --- Usuarios (solo superadmin) ---
 const tablaUsuarios = document.getElementById('tabla-usuarios');
-async function loadUsuarios(){ if(currentUser.role!=='superadmin') return; const rows = await api('/api/users'); tablaUsuarios.innerHTML=''; for(const u of rows){ const tr=document.createElement('tr'); tr.innerHTML = `<td>${u.username}</td><td>${u.role}</td><td>${u.can_delete? '✅':''}</td><td><button class="action-btn" data-uedit="${u.id}">Editar</button> ${u.username!=='root'?`<button class="action-btn danger" data-udel="${u.id}">Eliminar</button>`:''}</td>`; tablaUsuarios.appendChild(tr);} }
+async function loadUsuarios(){
+  const users = await api('/api/users');
+  tablaUsuarios.innerHTML = users.map(u => `
+    <tr>
+      <td data-label="Usuario">${u.username}</td>
+      <td data-label="Rol">${u.role}</td>
+      <td data-label="Acciones">
+        <button data-action="edit" data-id="${u.id}" class="secondary small">Editar</button>
+        <button data-action="delete" data-id="${u.id}" class="danger small">Borrar</button>
+      </td>
+    </tr>
+  `).join('');
+}
 
 tablaUsuarios?.addEventListener('click', async (e)=>{ const idD=e.target.getAttribute('data-udel'); if(idD){ if(confirm('¿Eliminar usuario?')){ await api('/api/users/'+idD,{ method:'DELETE' }); loadUsuarios(); } } });
 
