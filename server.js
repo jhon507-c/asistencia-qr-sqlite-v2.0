@@ -288,6 +288,82 @@ app.delete('/api/attendance/:id', authRequired, requireCanDelete, (req,res)=>{
   res.json({ ok:true });
 });
 
+// --- Stats / Dashboard ---
+app.get('/api/attendance/stats', authRequired, (req, res) => {
+  const eventId = getActiveEventId();
+  if (!eventId) return res.json({ presentes: 0, ausentes: 0, total: 0, adentro: 0 });
+
+  const total = db.prepare('SELECT COUNT(id) as total FROM students').get().total;
+  const presentes = db.prepare('SELECT COUNT(id) as total FROM attendance WHERE event_id = ?').get(eventId).total;
+  const adentro = db.prepare('SELECT COUNT(id) as total FROM attendance WHERE event_id = ? AND salida_at IS NULL').get(eventId).total;
+  
+  res.json({
+    presentes,
+    ausentes: total - presentes,
+    total,
+    adentro
+  });
+});
+
+app.get('/api/attendance/list', authRequired, (req, res) => {
+  const eventId = getActiveEventId();
+  if (!eventId) return res.json([]);
+  
+  const status = req.query.status;
+  let rows;
+  if (status === 'current') {
+    rows = db.prepare(`
+      SELECT s.nombre, s.cedula, a.ingreso_at, a.salida_at 
+      FROM attendance a JOIN students s ON a.student_id = s.id 
+      WHERE a.event_id = ? AND a.salida_at IS NULL 
+      ORDER BY a.ingreso_at DESC LIMIT 20
+    `).all(eventId);
+  } else {
+    rows = db.prepare(`
+      SELECT s.nombre, s.cedula, a.ingreso_at, a.salida_at 
+      FROM attendance a JOIN students s ON a.student_id = s.id 
+      WHERE a.event_id = ? 
+      ORDER BY a.ingreso_at DESC LIMIT 20
+    `).all(eventId);
+  }
+  res.json(rows);
+});
+
+app.get('/api/stats/students-by-group', authRequired, (req, res) => {
+  const rows = db.prepare(`
+    SELECT grupo, COUNT(id) as total 
+    FROM students 
+    WHERE grupo IS NOT NULL AND grupo != '' 
+    GROUP BY grupo ORDER BY grupo
+  `).all();
+  res.json(rows);
+});
+
+app.get('/api/stats/attendance-by-group', authRequired, (req, res) => {
+  const eventId = getActiveEventId();
+  if (!eventId) return res.json([]);
+
+  const rows = db.prepare(`
+    SELECT 
+      s.grupo, 
+      COUNT(s.id) as total,
+      SUM(CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END) as presentes
+    FROM students s
+    LEFT JOIN attendance a ON s.id = a.student_id AND a.event_id = ?
+    WHERE s.grupo IS NOT NULL AND s.grupo != ''
+    GROUP BY s.grupo
+    ORDER BY s.grupo
+  `).all(eventId);
+
+  const result = rows.map(r => ({
+    grupo: r.grupo,
+    presentes: r.presentes,
+    ausentes: r.total - r.presentes
+  }));
+  res.json(result);
+});
+
+
 // --- Export/Reportes ---
 function minutesDiff(a, b){ try{ return Math.round((new Date(b) - new Date(a)) / 60000); }catch{ return null; } }
 function rangeFromTo(from, to){ let start = from ? new Date(from + 'T00:00:00') : new Date('1970-01-01T00:00:00'); let end = to ? new Date(to + 'T23:59:59.999') : new Date('2999-12-31T23:59:59.999'); return { start: start.toISOString(), end: end.toISOString() }; }
