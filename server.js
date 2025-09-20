@@ -55,28 +55,19 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-initDb();
-// asegurar hash de root si está en placeholder
-const root = db.prepare('SELECT * FROM users WHERE username=?').get('root');
-if(root && root.password_hash === 'PLACEHOLDER_HASH_TO_BE_SET_AT_RUNTIME'){
-  const hash = bcrypt.hashSync('@dM!n!25', 10);
-  db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hash, root.id);
-}
-
-function nowISO(){ return new Date().toISOString(); }
-function sign(user){ return jwt.sign({ id: user.id, username: user.username, role: user.role, can_delete: !!user.can_delete }, JWT_SECRET, { expiresIn: '12h' }); }
-
-function authRequired(req, res, next){
-  const token = req.cookies.token;
-  if(!token) return res.status(401).json({ error: 'No autenticado' });
-  try{ const payload = jwt.verify(token, JWT_SECRET); req.user = payload; next(); }
-  catch{ return res.status(401).json({ error: 'Token inválido' }); }
-}
-function requireSuper(req,res,next){ if(req.user && req.user.role==='superadmin') return next(); return res.status(403).json({ error: 'Solo superadmin' }); }
-function requireCanDelete(req,res,next){ if(req.user && (req.user.role==='superadmin' || req.user.can_delete)) return next(); return res.status(403).json({ error: 'Sin permisos para borrar' }); }
 
 // --- Auth ---
-app.post('/api/auth/login', (req,res)=>{
+const requireLogin = (req, res, next) => {
+  if (req.session.user) {
+    req.user = req.session.user;
+    return next();
+  }
+  res.status(401).json({ error: 'No autenticado' });
+};
+function requireAdmin(req,res,next){ if(req.user && (req.user.role==='admin' || req.user.role==='superadmin')) return next(); return res.status(403).json({ error: 'Solo admin' }); }
+function requireSuper(req,res,next){ if(req.user && req.user.role==='superadmin') return next(); return res.status(403).json({ error: 'Solo superadmin' }); }
+
+app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body || {};
   if(!username || !password) return res.status(400).json({ error:'Usuario y contraseña requeridos' });
   const u = db.prepare('SELECT * FROM users WHERE username=?').get(String(username));
