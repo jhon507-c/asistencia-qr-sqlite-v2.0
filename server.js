@@ -290,18 +290,23 @@ app.delete('/api/attendance/:id', authRequired, requireCanDelete, (req,res)=>{
 
 // --- Stats / Dashboard ---
 app.get('/api/attendance/stats', authRequired, (req, res) => {
-  const eventId = getActiveEventId();
-  if (!eventId) return res.json({ presentes: 0, ausentes: 0, total: 0, adentro: 0 });
-
   const total = db.prepare('SELECT COUNT(id) as total FROM students').get().total;
+  const eventId = getActiveEventId();
+  
+  if (!eventId) {
+    return res.json({ presentes: 0, ausentes: total, total, adentro: 0, salidas: 0 });
+  }
+
   const presentes = db.prepare('SELECT COUNT(id) as total FROM attendance WHERE event_id = ?').get(eventId).total;
   const adentro = db.prepare('SELECT COUNT(id) as total FROM attendance WHERE event_id = ? AND salida_at IS NULL').get(eventId).total;
+  const salidas = db.prepare('SELECT COUNT(id) as total FROM attendance WHERE event_id = ? AND salida_at IS NOT NULL').get(eventId).total;
   
   res.json({
     presentes,
     ausentes: total - presentes,
     total,
-    adentro
+    adentro,
+    salidas
   });
 });
 

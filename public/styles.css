@@ -21,7 +21,7 @@ main{ padding:16px; max-width:1200px; margin:0 auto; }
 .card .label{ font-size:12px; color:var(--muted); }
 .card .value{ font-size:28px; font-weight:700; margin-top:6px; color:var(--primary-700) }
 .grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
-.panel{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px; }
+.panel{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px; position: relative; }
 
 /* --- Media Queries para Responsive --- */
 @media (max-width: 768px){
