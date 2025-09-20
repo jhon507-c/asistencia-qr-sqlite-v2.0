@@ -75,18 +75,35 @@ function requireAdmin(req,res,next){ if(req.user && (req.user.role==='admin' || 
 function requireSuper(req,res,next){ if(req.user && req.user.role==='superadmin') return next(); return res.status(403).json({ error: 'Solo superadmin' }); }
 function requireCanDelete(req,res,next){ if(req.user && req.user.can_delete) return next(); return res.status(403).json({ error: 'No tienes permiso para borrar' }); }
 
-app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body || {};
-  if(!username || !password) return res.status(400).json({ error:'Usuario y contraseña requeridos' });
-  const u = db.prepare('SELECT * FROM users WHERE username=?').get(String(username));
-  if(!u) return res.status(401).json({ error:'Credenciales inválidas' });
-  const ok = bcrypt.compareSync(String(password), u.password_hash);
-  if(!ok) return res.status(401).json({ error:'Credenciales inválidas' });
-  const token = sign(u);
-  res.cookie('token', token, { httpOnly: true, sameSite: 'lax', secure: !!process.env.COOLIFY_URL });
-  res.json({ ok:true, user: { id: u.id, username: u.username, role: u.role, can_delete: !!u.can_delete } });
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+    }
+    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    if (!user) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    const token = jwt.sign({ id: user.id, username: user.username, role: user.role, can_delete: !!user.can_delete }, JWT_SECRET, { expiresIn: '1d' });
+    res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/' });
+    res.json({ id: user.id, username: user.username, role: user.role });
+  } catch (e) {
+    console.error('Error en login:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
 });
-app.post('/api/auth/logout', (req,res)=>{ res.clearCookie('token'); res.json({ ok:true }); });
+
+app.post('/api/auth/logout', (req,res)=>{
+  res.clearCookie('token');
+  res.json({ ok:true });
+});
 app.get('/api/auth/me', authRequired, (req,res)=>{
   return res.json({ id:req.user.id, username:req.user.username, role:req.user.role, can_delete:!!req.user.can_delete });
 });
