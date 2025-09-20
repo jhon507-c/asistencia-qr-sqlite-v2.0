@@ -86,3 +86,15 @@ tr:last-child td{ border-bottom:none; }
 .modal-body {
   padding: 1rem;
 }
+
+.button-like {
+  display: inline-block;
+  margin-top: 1rem;
+  background: var(--primary);
+  color: #fff;
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+}

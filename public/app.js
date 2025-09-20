@@ -113,12 +113,14 @@ tablaEstudiantes?.addEventListener('click', async (e)=>{
     const modal = document.getElementById('modal-qr');
     document.getElementById('qr-student-name').textContent = nombre;
     document.getElementById('qr-student-cedula').textContent = `Cédula: ${cedula}`;
-    new QRious({
-      element: document.getElementById('qr-canvas'),
-      value: cedula,
-      size: 250,
-      padding: 20
-    });
+    const qrCanvas = document.getElementById('qr-canvas');
+    new QRious({ element: qrCanvas, value: cedula, size: 250, padding: 20 });
+    
+    // Lógica para descargar como JPG
+    const downloadBtn = document.getElementById('btn-download-qr-jpg');
+    downloadBtn.href = qrCanvas.toDataURL('image/jpeg');
+    downloadBtn.download = `qr-${nombre.replace(/ /g, '_')}-${cedula}.jpg`;
+
     modal.style.display = 'flex';
   }
 
@@ -130,6 +132,49 @@ tablaEstudiantes?.addEventListener('click', async (e)=>{
 
 document.getElementById('btn-close-modal-qr')?.addEventListener('click', () => {
   document.getElementById('modal-qr').style.display = 'none';
+});
+
+// Lógica para descargar múltiples QR en PDF
+document.getElementById('btn-download-qr-pdf')?.addEventListener('click', () => {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const checkboxes = document.querySelectorAll('#tabla-estudiantes input[type="checkbox"]:checked');
+  
+  if (checkboxes.length === 0) {
+    alert('Por favor, selecciona al menos un estudiante para generar el PDF.');
+    return;
+  }
+
+  let y = 15; // Posición vertical inicial
+  const pageHeight = doc.internal.pageSize.height;
+  const qrSize = 60;
+  const margin = 15;
+
+  checkboxes.forEach((chk, index) => {
+    const row = chk.closest('tr');
+    const nombre = row.cells[1].textContent;
+    const cedula = row.cells[3].textContent;
+
+    if (y + qrSize + 20 > pageHeight) { // Si no cabe, nueva página
+      doc.addPage();
+      y = 15;
+    }
+
+    doc.setFontSize(12);
+    doc.text(nombre, margin, y);
+    doc.setFontSize(10);
+    doc.text(`Cédula: ${cedula}`, margin, y + 5);
+
+    const tempCanvas = document.createElement('canvas');
+    new QRious({ element: tempCanvas, value: cedula, size: qrSize });
+    const qrDataUrl = tempCanvas.toDataURL('image/png');
+    
+    doc.addImage(qrDataUrl, 'PNG', margin, y + 10, qrSize, qrSize);
+    
+    y += qrSize + 25; // Incrementar posición para el siguiente
+  });
+
+  doc.save('codigos-qr-estudiantes.pdf');
 });
 
 document.getElementById('btn-guardar-estudiante')?.addEventListener('click', async () => {

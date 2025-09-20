@@ -8,6 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <header>
@@ -109,12 +110,7 @@
           <div class="row">
             <input id="buscar-estudiantes" placeholder="Buscar por nombre, cédula" />
             <button id="btn-buscar-estudiantes" class="secondary">Buscar</button>
-          </div>
-          <div class="row" style="margin-top:8px; flex-wrap: wrap; gap:12px">
-            <input id="csv-file" type="file" accept=".csv" />
-            <button id="btn-importar-csv">Importar CSV</button>
-            <button id="btn-descargar-plantilla" class="secondary">Plantilla CSV</button>
-            <button id="btn-generar-qrs-seleccion">QRs (seleccionados)</button>
+            <button id="btn-download-qr-pdf" class="secondary">Descargar QR (PDF)</button>
           </div>
           <table>
             <thead><tr><th><input type="checkbox" id="chk-all"/></th><th>Nombre</th><th>Grupo</th><th>Cédula</th><th>Acciones</th></tr></thead>
@@ -205,6 +201,7 @@
         <canvas id="qr-canvas"></canvas>
         <p id="qr-student-name" style="margin-top: 1rem; font-weight: bold;"></p>
         <p id="qr-student-cedula"></p>
+        <a id="btn-download-qr-jpg" class="button-like" download="qr.jpg">Descargar JPG</a>
       </div>
     </div>
   </div>
