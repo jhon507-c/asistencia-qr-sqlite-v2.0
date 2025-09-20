@@ -23,6 +23,12 @@ main{ padding:16px; max-width:1200px; margin:0 auto; }
 .grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
 .panel{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:12px; position: relative; }
 
+.chart-container {
+  position: relative;
+  height: 300px; /* Altura fija para los gráficos */
+  width: 100%;
+}
+
 /* --- Media Queries para Responsive --- */
 @media (max-width: 768px){
   .grid-2{ grid-template-columns: 1fr; }

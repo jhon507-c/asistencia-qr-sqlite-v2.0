@@ -5,12 +5,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
-import session from 'express-session';
 import multer from 'multer';
 import fs from 'fs';
-
-import { db, initDb, getActiveEventId, ensureActiveEvent } from './db.js';
 import bcrypt from 'bcryptjs';
+import ExcelJS from 'exceljs';
+
+import { db, initDb, ensureActiveEvent } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,35 +19,24 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 
+// --- Middlewares ---
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '5mb' }));
 app.use(cookieParser());
-app.use(morgan('dev'));
+app.use(morgan('dev')); // Usar 'tiny' o 'short' en producción para menos logs
 
+// --- Servir archivos estáticos ---
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const uploadMemory = multer({ storage: multer.memoryStorage() });
-const uploadDisk = multer({ storage: multer.diskStorage({
-  destination: (req, file, cb)=> cb(null, path.join(__dirname, 'uploads')),
-  filename: (req, file, cb)=>{
-    const ext = (file.originalname||'').split('.').pop();
-    const name = Date.now() + '-' + Math.random().toString(36).slice(2) + (ext?'.'+ext:'');
-    cb(null, name);
-  }
-})});
-
 // --- Configuración de Multer para subida de fotos ---
-const FOTOS_DIR = 'public/fotos';
+const FOTOS_DIR = path.join(__dirname, 'public', 'fotos');
 if (!fs.existsSync(FOTOS_DIR)){
     fs.mkdirSync(FOTOS_DIR, { recursive: true });
 }
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, FOTOS_DIR);
-  },
-  filename: function (req, file, cb) {
-    // Usar la cédula como nombre de archivo para evitar duplicados
+  destination: FOTOS_DIR,
+  filename: (req, file, cb) => {
     const cedula = req.body.cedula || 'sin-cedula';
     const extension = path.extname(file.originalname);
     cb(null, `${cedula}${extension}`);
@@ -55,41 +44,44 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-
-// --- Auth ---
+// --- Middlewares de Autenticación ---
 const authRequired = (req, res, next) => {
   const token = req.cookies.token;
-  if (!token) {
-    return res.status(401).json({ error: 'No autenticado' });
-  }
+  if (!token) return res.status(401).json({ error: 'No autenticado' });
+  
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload; // Adjuntar datos del usuario al request
+    req.user = jwt.verify(token, JWT_SECRET);
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Token inválido' });
   }
 };
 
-function requireAdmin(req,res,next){ if(req.user && (req.user.role==='admin' || req.user.role==='superadmin')) return next(); return res.status(403).json({ error: 'Solo admin' }); }
-function requireSuper(req,res,next){ if(req.user && req.user.role==='superadmin') return next(); return res.status(403).json({ error: 'Solo superadmin' }); }
-function requireCanDelete(req,res,next){ if(req.user && req.user.can_delete) return next(); return res.status(403).json({ error: 'No tienes permiso para borrar' }); }
+const requireRole = (role) => (req, res, next) => {
+  const userRole = req.user?.role;
+  const roles = Array.isArray(role) ? role : [role];
+  if (userRole && roles.includes(userRole)) {
+    return next();
+  }
+  res.status(403).json({ error: `Acceso denegado. Rol requerido: ${roles.join(' o ')}` });
+};
 
+const requireCanDelete = (req, res, next) => {
+  if (req.user?.can_delete) return next();
+  res.status(403).json({ error: 'No tienes permiso para borrar' });
+};
+
+// --- Rutas de Autenticación ---
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { username, password } = req.body || {};
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
-    }
+    if (!username || !password) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+    
     const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
-    if (!user) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-    }
+    if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
 
     const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
-    }
+    if (!match) return res.status(401).json({ error: 'Credenciales inválidas' });
 
     const token = jwt.sign({ id: user.id, username: user.username, role: user.role, can_delete: !!user.can_delete }, JWT_SECRET, { expiresIn: '1d' });
     res.cookie('token', token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/' });
@@ -100,56 +92,76 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/auth/logout', (req,res)=>{
-  res.clearCookie('token');
-  res.json({ ok:true });
-});
-app.get('/api/auth/me', authRequired, (req,res)=>{
-  return res.json({ id:req.user.id, username:req.user.username, role:req.user.role, can_delete:!!req.user.can_delete });
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('token').json({ ok: true });
 });
 
-// --- Settings ---
-app.get('/api/settings', authRequired, (req, res) => {
-  const rows = db.prepare('SELECT key, value FROM settings').all();
-  const out = {}; for(const r of rows) out[r.key] = r.value; res.json(out);
+app.get('/api/auth/me', authRequired, (req, res) => {
+  res.json({ id: req.user.id, username: req.user.username, role: req.user.role, can_delete: !!req.user.can_delete });
 });
-app.put('/api/settings', authRequired, requireSuper, (req, res) => {
+
+// --- Rutas de Administración (Settings, Users, Events) ---
+app.get('/api/settings', authRequired, requireRole('superadmin'), (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM settings').all();
+  const out = rows.reduce((acc, r) => ({ ...acc, [r.key]: r.value }), {});
+  res.json(out);
+});
+
+app.put('/api/settings', authRequired, requireRole('superadmin'), (req, res) => {
   const entries = Object.entries(req.body || {});
-  const up = db.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
-  const tx = db.transaction((pairs)=>{ for(const [k,v] of pairs) up.run(k, String(v)); });
-  tx(entries);
+  const stmt = db.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
+  db.transaction((pairs) => pairs.forEach(([k, v]) => stmt.run(k, String(v))))(entries);
   res.json({ ok: true });
 });
 
-// --- Users ---
-app.get('/api/users', authRequired, requireSuper, (req,res)=>{
+app.get('/api/users', authRequired, requireRole('superadmin'), (req, res) => {
   const rows = db.prepare('SELECT id, username, role, can_delete, created_at FROM users ORDER BY username ASC').all();
   res.json(rows);
 });
-app.post('/api/users', authRequired, requireSuper, (req,res)=>{
-  const { username, password, role='user', can_delete=false } = req.body||{};
-  if(!username || !password) return res.status(400).json({ error:'username y password requeridos' });
-  const hash = bcrypt.hashSync(String(password),10);
-  try{
-    const info = db.prepare('INSERT INTO users(username,password_hash,role,can_delete,created_at) VALUES(?,?,?,?,?)').run(String(username), hash, String(role), can_delete?1:0, nowISO());
-    res.json({ ok:true, id: info.lastInsertRowid });
-  }catch(e){ if(String(e).includes('UNIQUE')) return res.status(409).json({ error:'username ya existe' }); throw e; }
+
+app.post('/api/users', authRequired, requireRole('superadmin'), async (req, res) => {
+  try {
+    const { username, password, role = 'user', can_delete = false } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'username y password requeridos' });
+    
+    const hash = await bcrypt.hash(String(password), 10);
+    
+    const info = db.prepare('INSERT INTO users(username,password_hash,role,can_delete,created_at) VALUES(?,?,?,?,?)')
+                   .run(String(username), hash, String(role), can_delete ? 1 : 0, new Date().toISOString());
+    res.status(201).json({ ok: true, id: info.lastInsertRowid });
+  } catch (e) {
+    if (String(e).includes('UNIQUE')) return res.status(409).json({ error: 'username ya existe' });
+    console.error('Error creando usuario:', e);
+    res.status(500).json({ error: 'Error interno' });
+  }
 });
-app.put('/api/users/:id', authRequired, requireSuper, (req,res)=>{
+
+app.put('/api/users/:id', authRequired, requireRole('superadmin'), async (req, res) => {
   const id = Number(req.params.id);
-  const { password, role, can_delete } = req.body||{};
-  const u = db.prepare('SELECT * FROM users WHERE id=?').get(id); if(!u) return res.status(404).json({ error:'No existe' });
-  const hash = password? bcrypt.hashSync(String(password),10) : undefined;
+  const { password, role, can_delete } = req.body || {};
+  
+  if (!db.prepare('SELECT id FROM users WHERE id=?').get(id)) {
+    return res.status(404).json({ error: 'No existe' });
+  }
+
+  let hash;
+  if (password) {
+    hash = await bcrypt.hash(String(password), 10);
+  }
+
   db.prepare('UPDATE users SET password_hash=COALESCE(?,password_hash), role=COALESCE(?,role), can_delete=COALESCE(?,can_delete) WHERE id=?')
-    .run(hash, role, (typeof can_delete==='boolean')?(can_delete?1:0):undefined, id);
-  res.json({ ok:true });
+    .run(hash, role, (typeof can_delete === 'boolean') ? (can_delete ? 1 : 0) : undefined, id);
+  res.json({ ok: true });
 });
-app.delete('/api/users/:id', authRequired, requireSuper, (req,res)=>{
+
+app.delete('/api/users/:id', authRequired, requireRole('superadmin'), (req, res) => {
   const id = Number(req.params.id);
-  const u = db.prepare('SELECT * FROM users WHERE id=?').get(id); if(!u) return res.status(404).json({ error:'No existe' });
-  if(u.username==='root') return res.status(400).json({ error:'No se puede eliminar root' });
+  const u = db.prepare('SELECT username FROM users WHERE id=?').get(id);
+  if (!u) return res.status(404).json({ error: 'No existe' });
+  if (u.username === 'root') return res.status(400).json({ error: 'No se puede eliminar root' });
+  
   db.prepare('DELETE FROM users WHERE id=?').run(id);
-  res.json({ ok:true });
+  res.json({ ok: true });
 });
 
 // --- Eventos ---
@@ -211,16 +223,25 @@ app.post('/api/students', authRequired, upload.single('foto'), (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-app.put('/api/students/:id', authRequired, (req, res) => {
+app.put('/api/students/:id', authRequired, requireRole(['admin', 'superadmin']), (req, res) => {
   const id = Number(req.params.id);
   const { cedula, nombre, email, telefono, grupo } = req.body || {};
-  const st = db.prepare('SELECT * FROM students WHERE id=?').get(id);
-  if(!st) return res.status(404).json({ error: 'Estudiante no encontrado' });
-  try{
+  
+  if (!db.prepare('SELECT id FROM students WHERE id=?').get(id)) {
+    return res.status(404).json({ error: 'Estudiante no encontrado' });
+  }
+
+  try {
     db.prepare('UPDATE students SET cedula=COALESCE(?,cedula), nombre=COALESCE(?,nombre), email=COALESCE(?,email), telefono=COALESCE(?,telefono), grupo=COALESCE(?,grupo) WHERE id=?')
       .run(cedula, nombre, email, telefono, grupo, id);
+    
+    const updatedStudent = db.prepare('SELECT * FROM students WHERE id = ?').get(id);
     res.json(updatedStudent);
-  }catch(e){ if(String(e).includes('UNIQUE')) return res.status(409).json({ error: 'Cédula ya existe' }); throw e; }
+  } catch (e) {
+    if (String(e).includes('UNIQUE')) return res.status(409).json({ error: 'Cédula ya existe' });
+    console.error('Error actualizando estudiante:', e);
+    res.status(500).json({ error: 'Error interno' });
+  }
 });
 app.delete('/api/students/:id', authRequired, (req, res) => {
   if(!(req.user && (req.user.role==='superadmin' || req.user.role==='admin'))) return res.status(403).json({ error:'Solo admin o superior' });
@@ -291,12 +312,13 @@ app.delete('/api/attendance/:id', authRequired, requireCanDelete, (req,res)=>{
 // --- Stats / Dashboard ---
 app.get('/api/attendance/stats', authRequired, (req, res) => {
   const total = db.prepare('SELECT COUNT(id) as total FROM students').get().total;
-  const eventId = getActiveEventId();
+  const activeEvent = db.prepare('SELECT id FROM events WHERE activo = 1').get();
   
-  if (!eventId) {
+  if (!activeEvent) {
     return res.json({ presentes: 0, ausentes: total, total, adentro: 0, salidas: 0 });
   }
 
+  const eventId = activeEvent.id;
   const presentes = db.prepare('SELECT COUNT(id) as total FROM attendance WHERE event_id = ?').get(eventId).total;
   const adentro = db.prepare('SELECT COUNT(id) as total FROM attendance WHERE event_id = ? AND salida_at IS NULL').get(eventId).total;
   const salidas = db.prepare('SELECT COUNT(id) as total FROM attendance WHERE event_id = ? AND salida_at IS NOT NULL').get(eventId).total;
@@ -401,13 +423,35 @@ app.get('/api/export/attendance.xlsx', authRequired, async (req,res)=>{
 });
 
 // --- Rutas de páginas (gating server-side) ---
-app.get('/login', (req,res)=>{ res.sendFile(path.join(__dirname,'public','login.html')); });
-app.get('/', (req,res)=>{
-  const token = req.cookies.token;
-  if(!token) return res.redirect('/login');
-  try{ jwt.verify(token, JWT_SECRET); return res.sendFile(path.join(__dirname,'public','index.html')); }
-  catch{ return res.redirect('/login'); }
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
-app.get('*', (req,res)=>{ return res.redirect('/'); });
 
-app.listen(PORT, ()=> console.log(`✅ Servidor en http://localhost:${PORT}`));
+const redirectToLogin = (req, res) => res.redirect('/login');
+
+const mainPageGate = (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) return redirectToLogin(req, res);
+  try {
+    jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    return redirectToLogin(req, res);
+  }
+};
+
+app.get('/', mainPageGate, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// --- Manejador de errores global ---
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Algo salió mal!');
+});
+
+app.get('*', (req, res) => {
+  res.redirect('/');
+});
+
+app.listen(PORT, () => console.log(`✅ Servidor en http://localhost:${PORT}`));

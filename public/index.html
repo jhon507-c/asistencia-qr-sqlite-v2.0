@@ -30,28 +30,27 @@
 
   <main>
     <section id="section-dashboard" class="section visible">
-      <h2>Dashboard</h2>
       <div class="cards">
-        <div class="card"><div class="label">Total estudiantes</div><div id="m-total-estudiantes" class="value">-</div></div>
-        <div class="card"><div class="label">Marcados</div><div id="m-total-marcados" class="value">-</div></div>
-        <div class="card"><div class="label">Presentes</div><div id="m-presentes" class="value">-</div></div>
-        <div class="card"><div class="label">Salidas</div><div id="m-salidas" class="value">-</div></div>
+        <div class="card"><div class="label">Total Estudiantes</div><div id="stat-total" class="value">0</div></div>
+        <div class="card"><div class="label">Presentes</div><div id="stat-presentes" class="value">0</div></div>
+        <div class="card"><div class="label">Ausentes</div><div id="stat-ausentes" class="value">0</div></div>
+        <div class="card"><div class="label">Adentro</div><div id="stat-adentro" class="value">0</div></div>
+        <div class="card"><div class="label">Salidas</div><div id="stat-salidas" class="value">0</div></div>
       </div>
       <div class="grid-2">
         <div class="panel">
-          <h3>Estudiantes por grupo</h3>
-          <canvas id="chart-alumnos"></canvas>
+          <h4>Estudiantes por grupo</h4>
+          <div class="chart-container">
+            <canvas id="chart-alumnos"></canvas>
+          </div>
         </div>
         <div class="panel">
-          <h3>Asistencia/Ausencia por grupo</h3>
-          <canvas id="chart-asistencia"></canvas>
+          <h4>Asistencia por grupo</h4>
+          <div class="chart-container">
+            <canvas id="chart-asistencia"></canvas>
+          </div>
         </div>
       </div>
-      <h3>Presentes ahora</h3>
-      <table>
-        <thead><tr><th>Nombre</th><th>Cédula</th><th>Grupo</th><th>Ingreso</th></tr></thead>
-        <tbody id="tabla-presentes"></tbody>
-      </table>
     </section>
 
     <section id="section-ingreso" class="section">
