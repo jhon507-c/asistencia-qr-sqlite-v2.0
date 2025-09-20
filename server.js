@@ -5,10 +5,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
+import session from 'express-session';
 import multer from 'multer';
-import ExcelJS from 'exceljs';
-import QRCode from 'qrcode';
-import { parse as csvParse } from 'csv-parse/sync';
+import fs from 'fs';
+
 import { db, initDb, getActiveEventId, ensureActiveEvent } from './db.js';
 import bcrypt from 'bcryptjs';
 
@@ -36,6 +36,24 @@ const uploadDisk = multer({ storage: multer.diskStorage({
     cb(null, name);
   }
 })});
+
+// --- Configuración de Multer para subida de fotos ---
+const FOTOS_DIR = 'public/fotos';
+if (!fs.existsSync(FOTOS_DIR)){
+    fs.mkdirSync(FOTOS_DIR, { recursive: true });
+}
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, FOTOS_DIR);
+  },
+  filename: function (req, file, cb) {
+    // Usar la cédula como nombre de archivo para evitar duplicados
+    const cedula = req.body.cedula || 'sin-cedula';
+    const extension = path.extname(file.originalname);
+    cb(null, `${cedula}${extension}`);
+  }
+});
+const upload = multer({ storage: storage });
 
 initDb();
 // asegurar hash de root si está en placeholder
@@ -150,31 +168,27 @@ app.get('/api/events/active', authRequired, (req, res) => {
 });
 
 // --- Estudiantes ---
-app.get('/api/students', authRequired, (req, res) => {
-  const { search, grupo } = req.query;
-  let rows;
-  if(search){
-    const s = `%${String(search).toLowerCase()}%`;
-    if(grupo){ rows = db.prepare(`SELECT * FROM students WHERE (lower(nombre) LIKE ? OR lower(cedula) LIKE ?) AND grupo=? ORDER BY nombre ASC LIMIT 200`).all(s, s, grupo); }
-    else { rows = db.prepare(`SELECT * FROM students WHERE lower(nombre) LIKE ? OR lower(cedula) LIKE ? ORDER BY nombre ASC LIMIT 200`).all(s, s); }
-  } else if(grupo){ rows = db.prepare('SELECT * FROM students WHERE grupo=? ORDER BY nombre ASC LIMIT 200').all(grupo); }
-  else { rows = db.prepare('SELECT * FROM students ORDER BY nombre ASC LIMIT 200').all(); }
-  res.json(rows);
+app.get('/api/students', requireLogin, async (req, res) => {
+  const { search } = req.query;
+  res.json(db.getStudents(search));
 });
 app.get('/api/students/:id', authRequired, (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id=?').get(Number(req.params.id));
   if(!st) return res.status(404).json({ error: 'Estudiante no encontrado' });
   res.json(st);
 });
-app.post('/api/students', authRequired, (req, res) => {
-  let { cedula, nombre, email, telefono, grupo } = req.body || {};
-  if(!cedula) return res.status(400).json({ error: 'cedula es requerida' });
-  nombre = nombre || 'Sin nombre';
-  try{
-    const info = db.prepare('INSERT INTO students(cedula, nombre, email, telefono, grupo, created_at) VALUES(?,?,?,?,?,?)')
-      .run(String(cedula), String(nombre), email||null, telefono||null, grupo||null, nowISO());
-    res.json({ ok: true, id: info.lastInsertRowid });
-  }catch(e){ if(String(e).includes('UNIQUE')) return res.status(409).json({ error: 'Cédula ya existe' }); throw e; }
+app.post('/api/students', requireAdmin, upload.single('foto'), (req, res) => {
+  const { nombre, cedula, grupo } = req.body;
+  if (!nombre || !cedula) {
+    return res.status(400).json({ error: 'Nombre y cédula son requeridos' });
+  }
+  try {
+    const fotoPath = req.file ? req.file.path.replace('public/', '') : null;
+    const result = db.createStudent({ nombre, cedula, grupo, foto: fotoPath });
+    res.status(201).json(result);
+  } catch (e) {
+    res.status(409).json({ error: e.message }); // 409 Conflict por si la cédula ya existe
+  }
 });
 app.put('/api/students/:id', authRequired, (req, res) => {
   const id = Number(req.params.id);

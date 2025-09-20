@@ -98,8 +98,40 @@ async function loadEstudiantes(){
 
 tablaEstudiantes?.addEventListener('click', async (e)=>{
   const idDel = e.target.getAttribute('data-del');
-  if(idDel){ if(confirm('¿Eliminar estudiante?')){ try{ await api(`/api/students/${idDel}`, { method:'DELETE' }); loadEstudiantes(); }catch(err){ alert(err.message); } } }
+  if(idDel){
+    if(!confirm(`¿Seguro que quieres borrar al estudiante con cédula ${idDel}?`)) return;
+    try{ await api(`/api/students/${idDel}`, { method:'DELETE' }); loadEstudiantes(); }catch(e){ alert(e.message); }
+  }
 });
+
+document.getElementById('btn-guardar-estudiante')?.addEventListener('click', async () => {
+  const statusEl = document.getElementById('status-estudiante');
+  try {
+    const formData = new FormData();
+    formData.append('nombre', document.getElementById('st-nombre').value);
+    formData.append('cedula', document.getElementById('st-cedula').value);
+    formData.append('grupo', document.getElementById('st-grupo').value);
+    const fotoFile = document.getElementById('st-foto').files[0];
+    if (fotoFile) {
+      formData.append('foto', fotoFile);
+    }
+
+    const res = await fetch('/api/students', { method: 'POST', body: formData, credentials: 'include' });
+    const result = await res.json();
+
+    if (!res.ok) throw new Error(result.error || 'Error al guardar');
+
+    setStatus(statusEl, 'Estudiante guardado con éxito', true);
+    document.getElementById('st-nombre').value = '';
+    document.getElementById('st-cedula').value = '';
+    document.getElementById('st-grupo').value = '';
+    document.getElementById('st-foto').value = '';
+    loadEstudiantes(); // Recargar la lista
+  } catch (e) {
+    setStatus(statusEl, e.message, false);
+  }
+});
+
 
 // --- Usuarios (solo superadmin) ---
 const tablaUsuarios = document.getElementById('tabla-usuarios');
