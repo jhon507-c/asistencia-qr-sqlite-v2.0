@@ -83,25 +83,53 @@ async function renderCharts(){
 document.getElementById('btn-buscar-estudiantes')?.addEventListener('click', loadEstudiantes);
 const tablaEstudiantes = document.getElementById('tabla-estudiantes');
 async function loadEstudiantes(){
-  const q = document.getElementById('buscar-estudiantes').value.trim();
-  const url = q? `/api/students?search=${encodeURIComponent(q)}` : '/api/students';
-  const rows = await api(url);
-  tablaEstudiantes.innerHTML='';
-  for(const st of rows){
-    const tr=document.createElement('tr');
-    tr.innerHTML = `<td><input type="checkbox" data-chk="${st.id}"></td><td>${st.nombre||''}</td><td>${st.grupo||''}</td><td>${st.cedula||''}</td>
-      <td><button class="action-btn" data-edit="${st.id}">Editar</button>
-      <button class="action-btn danger" data-del="${st.id}">Eliminar</button></td>`;
-    tablaEstudiantes.appendChild(tr);
-  }
+  const search = document.getElementById('buscar-estudiantes').value;
+  const students = await api('/api/students?search=' + encodeURIComponent(search));
+  tablaEstudiantes.innerHTML = students.map(st => `
+    <tr>
+      <td><input type="checkbox" data-id="${st.id}" /></td>
+      <td>${st.nombre}</td>
+      <td>${st.grupo}</td>
+      <td>${st.cedula}</td>
+      <td>
+        <button data-action="qr" data-nombre="${st.nombre}" data-cedula="${st.cedula}" class="secondary small">QR</button>
+        <button data-action="edit" data-id="${st.id}" class="secondary small">Editar</button>
+        <button data-action="delete" data-id="${st.id}" class="danger small">Borrar</button>
+      </td>
+    </tr>
+  `).join('');
 }
 
 tablaEstudiantes?.addEventListener('click', async (e)=>{
-  const idDel = e.target.getAttribute('data-del');
+  const target = e.target.closest('button');
+  if(!target) return;
+  const action = target.dataset.action;
+  const id = target.dataset.id;
+  const idDel = target.dataset.action === 'delete' ? target.dataset.id : null;
+
+  if (action === 'qr') {
+    const nombre = target.dataset.nombre;
+    const cedula = target.dataset.cedula;
+    const modal = document.getElementById('modal-qr');
+    document.getElementById('qr-student-name').textContent = nombre;
+    document.getElementById('qr-student-cedula').textContent = `Cédula: ${cedula}`;
+    new QRious({
+      element: document.getElementById('qr-canvas'),
+      value: cedula,
+      size: 250,
+      padding: 20
+    });
+    modal.style.display = 'flex';
+  }
+
   if(idDel){
     if(!confirm(`¿Seguro que quieres borrar al estudiante con cédula ${idDel}?`)) return;
     try{ await api(`/api/students/${idDel}`, { method:'DELETE' }); loadEstudiantes(); }catch(e){ alert(e.message); }
   }
+});
+
+document.getElementById('btn-close-modal-qr')?.addEventListener('click', () => {
+  document.getElementById('modal-qr').style.display = 'none';
 });
 
 document.getElementById('btn-guardar-estudiante')?.addEventListener('click', async () => {

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="./styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
 </head>
 <body>
   <header>
@@ -193,6 +194,20 @@
   <footer>
     <small>Hecho con ❤️ — Demo local</small>
   </footer>
+
+  <div id="modal-qr" class="modal-backdrop" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Código QR del Estudiante</h3>
+        <button id="btn-close-modal-qr" class="close">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align: center;">
+        <canvas id="qr-canvas"></canvas>
+        <p id="qr-student-name" style="margin-top: 1rem; font-weight: bold;"></p>
+        <p id="qr-student-cedula"></p>
+      </div>
+    </div>
+  </div>
 
   <script src="./app.js"></script>
 </body>
