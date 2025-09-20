@@ -108,4 +108,78 @@ async function loadUsuarios(){ if(currentUser.role!=='superadmin') return; const
 tablaUsuarios?.addEventListener('click', async (e)=>{ const idD=e.target.getAttribute('data-udel'); if(idD){ if(confirm('¿Eliminar usuario?')){ await api('/api/users/'+idD,{ method:'DELETE' }); loadUsuarios(); } } });
 
 // --- Init ---
-(async function init(){ try{ await refreshHeader(); await loadDashboard(); await renderCharts(); await loadEstudiantes(); }catch(e){ /* redirige a /login si 401 */ } })();
+(async function init(){ try{ await refreshHeader(); await loadDashboard(); await renderCharts(); }catch(e){ console.error(e); } })();
+
+
+// --- Lógica de escaneo QR ---
+function setupScanner(videoId, startBtnId, stopBtnId, statusElId, listElId, endpoint) {
+  const video = document.getElementById(videoId);
+  const statusEl = document.getElementById(statusElId);
+  const listEl = document.getElementById(listElId);
+  let stream;
+  let lastScanTime = 0;
+
+  document.getElementById(startBtnId).addEventListener('click', async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = stream;
+      video.style.display = 'block';
+      video.play();
+      requestAnimationFrame(tick);
+    } catch (err) {
+      statusEl.textContent = 'Error al acceder a la cámara: ' + err.message;
+      console.error(err);
+    }
+  });
+
+  document.getElementById(stopBtnId).addEventListener('click', () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      video.style.display = 'none';
+      video.srcObject = null;
+    }
+  });
+
+  async function handleCode(code) {
+    try {
+      const res = await api(endpoint, { method: 'POST', body: JSON.stringify({ cedula: code }) });
+      setStatus(statusEl, `${res.nombre} - ${res.message}`, true);
+      const li = document.createElement('li');
+      li.textContent = `${res.nombre} (${res.cedula}) - ${fmtDate(new Date())}`;
+      if (listEl.firstChild) {
+        listEl.insertBefore(li, listEl.firstChild);
+      } else {
+        listEl.appendChild(li);
+      }
+      if (listEl.children.length > 10) {
+        listEl.removeChild(listEl.lastChild);
+      }
+    } catch (e) {
+      setStatus(statusEl, e.message, false);
+    }
+  }
+
+  function tick() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+
+      const now = Date.now();
+      if (code && (now - lastScanTime > 3000)) { // Prevenir escaneos múltiples del mismo QR
+        lastScanTime = now;
+        handleCode(code.data);
+      }
+    }
+    if (video.srcObject) {
+      requestAnimationFrame(tick);
+    }
+  }
+}
+
+setupScanner('video-ingreso', 'btn-start-ingreso', 'btn-stop-ingreso', 'status-ingreso', 'ultimos-ingresos', '/api/attendance/ingreso');
+setupScanner('video-salida', 'btn-start-salida', 'btn-stop-salida', 'status-salida', 'ultimos-salidas', '/api/attendance/salida');
