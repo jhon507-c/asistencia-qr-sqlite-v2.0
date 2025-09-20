@@ -192,17 +192,23 @@ app.get('/api/students/:id', authRequired, (req, res) => {
   if(!st) return res.status(404).json({ error: 'Estudiante no encontrado' });
   res.json(st);
 });
-app.post('/api/students', requireAdmin, upload.single('foto'), (req, res) => {
+app.post('/api/students', authRequired, upload.single('foto'), (req, res) => {
   const { nombre, cedula, grupo } = req.body;
   if (!nombre || !cedula) {
     return res.status(400).json({ error: 'Nombre y cédula son requeridos' });
   }
   try {
-    const fotoPath = req.file ? req.file.path.replace('public/', '') : null;
-    const result = db.createStudent({ nombre, cedula, grupo, foto: fotoPath });
-    res.status(201).json(result);
+    const fotoPath = req.file ? `fotos/${req.file.filename}` : null;
+    const info = db.prepare('INSERT INTO students(cedula, nombre, grupo, foto, created_at) VALUES(?,?,?,?,?)')
+                   .run(cedula, nombre, grupo, fotoPath, new Date().toISOString());
+    const newStudent = db.prepare('SELECT * FROM students WHERE id = ?').get(info.lastInsertRowid);
+    res.status(201).json(newStudent);
   } catch (e) {
-    res.status(409).json({ error: e.message }); // 409 Conflict por si la cédula ya existe
+    if (String(e).includes('UNIQUE')) {
+        return res.status(409).json({ error: 'La cédula ya existe' });
+    }
+    console.error('Error al crear estudiante:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 app.put('/api/students/:id', authRequired, (req, res) => {
