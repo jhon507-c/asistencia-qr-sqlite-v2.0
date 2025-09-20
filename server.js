@@ -57,15 +57,23 @@ const upload = multer({ storage: storage });
 
 
 // --- Auth ---
-const requireLogin = (req, res, next) => {
-  if (req.session.user) {
-    req.user = req.session.user;
-    return next();
+const authRequired = (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).json({ error: 'No autenticado' });
   }
-  res.status(401).json({ error: 'No autenticado' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload; // Adjuntar datos del usuario al request
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Token inválido' });
+  }
 };
+
 function requireAdmin(req,res,next){ if(req.user && (req.user.role==='admin' || req.user.role==='superadmin')) return next(); return res.status(403).json({ error: 'Solo admin' }); }
 function requireSuper(req,res,next){ if(req.user && req.user.role==='superadmin') return next(); return res.status(403).json({ error: 'Solo superadmin' }); }
+function requireCanDelete(req,res,next){ if(req.user && req.user.can_delete) return next(); return res.status(403).json({ error: 'No tienes permiso para borrar' }); }
 
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body || {};
@@ -79,10 +87,8 @@ app.post('/api/auth/login', (req, res) => {
   res.json({ ok:true, user: { id: u.id, username: u.username, role: u.role, can_delete: !!u.can_delete } });
 });
 app.post('/api/auth/logout', (req,res)=>{ res.clearCookie('token'); res.json({ ok:true }); });
-app.get('/api/auth/me', (req,res)=>{
-  const token = req.cookies.token; if(!token) return res.status(401).json({ error:'No autenticado' });
-  try{ const p = jwt.verify(token, JWT_SECRET); return res.json({ id:p.id, username:p.username, role:p.role, can_delete:!!p.can_delete }); }
-  catch{ return res.status(401).json({ error:'Token inválido' }); }
+app.get('/api/auth/me', authRequired, (req,res)=>{
+  return res.json({ id:req.user.id, username:req.user.username, role:req.user.role, can_delete:!!req.user.can_delete });
 });
 
 // --- Settings ---
@@ -159,9 +165,10 @@ app.get('/api/events/active', authRequired, (req, res) => {
 });
 
 // --- Estudiantes ---
-app.get('/api/students', requireLogin, async (req, res) => {
+app.get('/api/students', authRequired, async (req, res) => {
   const { search } = req.query;
-  res.json(db.getStudents(search));
+  const rows = db.prepare(`SELECT * FROM students WHERE nombre LIKE ? OR cedula LIKE ? ORDER BY nombre LIMIT 50`).all(`%${search}%`, `%${search}%`);
+  res.json(rows);
 });
 app.get('/api/students/:id', authRequired, (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id=?').get(Number(req.params.id));
