@@ -219,7 +219,7 @@ app.put('/api/students/:id', authRequired, (req, res) => {
   try{
     db.prepare('UPDATE students SET cedula=COALESCE(?,cedula), nombre=COALESCE(?,nombre), email=COALESCE(?,email), telefono=COALESCE(?,telefono), grupo=COALESCE(?,grupo) WHERE id=?')
       .run(cedula, nombre, email, telefono, grupo, id);
-    res.json({ ok: true });
+    res.json(updatedStudent);
   }catch(e){ if(String(e).includes('UNIQUE')) return res.status(409).json({ error: 'Cédula ya existe' }); throw e; }
 });
 app.delete('/api/students/:id', authRequired, (req, res) => {
@@ -229,66 +229,59 @@ app.delete('/api/students/:id', authRequired, (req, res) => {
   res.json({ ok: true });
 });
 
-// --- Asistencia ---
-app.get('/api/attendance/stats', authRequired, (req, res) => {
-  const eventId = Number(req.query.eventId) || getActiveEventId();
-  const totalEstudiantes = db.prepare('SELECT COUNT(*) as c FROM students').get().c;
-  const totalMarcados = db.prepare('SELECT COUNT(*) as c FROM attendance WHERE event_id=?').get(eventId).c;
-  const presentes = db.prepare('SELECT COUNT(*) as c FROM attendance WHERE event_id=? AND salida_at IS NULL').get(eventId).c;
-  const salidas = totalMarcados - presentes;
-  res.json({ eventId, totalEstudiantes, totalMarcados, presentes, salidas });
-});
-app.get('/api/attendance/list', authRequired, (req, res) => {
-  const eventId = Number(req.query.eventId) || getActiveEventId();
-  const { status } = req.query;
-  let rows;
-  if(status === 'current'){
-    rows = db.prepare(`SELECT a.*, s.nombre, s.cedula, s.grupo FROM attendance a JOIN students s ON s.id=a.student_id WHERE a.event_id=? AND a.salida_at IS NULL ORDER BY a.ingreso_at DESC`).all(eventId);
-  } else {
-    rows = db.prepare(`SELECT a.*, s.nombre, s.cedula, s.grupo FROM attendance a JOIN students s ON s.id=a.student_id WHERE a.event_id=? ORDER BY a.ingreso_at DESC`).all(eventId);
+// --- Attendance ---
+app.post('/api/attendance/ingreso', authRequired, (req, res) => {
+  try {
+    const { cedula } = req.body;
+    if (!cedula) return res.status(400).json({ error: 'Cédula es requerida' });
+
+    const activeEvent = db.prepare('SELECT * FROM events WHERE is_active = 1').get();
+    if (!activeEvent) return res.status(400).json({ error: 'No hay un evento activo' });
+
+    const student = db.prepare('SELECT id, nombre FROM students WHERE cedula = ?').get(cedula);
+    if (!student) return res.status(404).json({ error: 'Estudiante no encontrado' });
+
+    const existingEntry = db.prepare('SELECT id FROM attendance WHERE student_id = ? AND event_id = ?').get(student.id, activeEvent.id);
+    if (existingEntry) {
+      return res.status(200).json({ message: 'Ya tiene un ingreso registrado', nombre: student.nombre, cedula });
+    }
+
+    db.prepare('INSERT INTO attendance (student_id, event_id, ingreso_at) VALUES (?, ?, ?)')
+      .run(student.id, activeEvent.id, new Date().toISOString());
+
+    res.json({ message: 'Ingreso registrado', nombre: student.nombre, cedula });
+  } catch (e) {
+    console.error('Error en ingreso:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-  res.json(rows);
 });
-app.get('/api/attendance/recent', authRequired, (req,res)=>{
-  const { type='checkin', limit=10 } = req.query;
-  const eventId = getActiveEventId();
-  let rows;
-  if(type==='checkout'){
-    rows = db.prepare(`SELECT a.*, s.nombre, s.cedula, s.grupo FROM attendance a JOIN students s ON s.id=a.student_id WHERE a.event_id=? AND a.salida_at IS NOT NULL ORDER BY a.salida_at DESC LIMIT ?`).all(eventId, Number(limit));
-  } else {
-    rows = db.prepare(`SELECT a.*, s.nombre, s.cedula, s.grupo FROM attendance a JOIN students s ON s.id=a.student_id WHERE a.event_id=? ORDER BY a.ingreso_at DESC LIMIT ?`).all(eventId, Number(limit));
+
+app.post('/api/attendance/salida', authRequired, (req, res) => {
+  try {
+    const { cedula } = req.body;
+    if (!cedula) return res.status(400).json({ error: 'Cédula es requerida' });
+
+    const activeEvent = db.prepare('SELECT * FROM events WHERE is_active = 1').get();
+    if (!activeEvent) return res.status(400).json({ error: 'No hay un evento activo' });
+
+    const student = db.prepare('SELECT id, nombre FROM students WHERE cedula = ?').get(cedula);
+    if (!student) return res.status(404).json({ error: 'Estudiante no encontrado' });
+
+    const result = db.prepare('UPDATE attendance SET salida_at = ? WHERE student_id = ? AND event_id = ? AND salida_at IS NULL')
+      .run(new Date().toISOString(), student.id, activeEvent.id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'No se encontró un ingreso previo para registrar la salida', nombre: student.nombre });
+    }
+
+    res.json({ message: 'Salida registrada', nombre: student.nombre, cedula });
+  } catch (e) {
+    console.error('Error en salida:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
-  res.json(rows);
 });
-app.post('/api/attendance/checkin', authRequired, (req, res) => {
-  const { cedula, studentId, nombre, grupo } = req.body || {};
-  if(!cedula && !studentId) return res.status(400).json({ error: 'cedula o studentId requerido' });
-  const eventId = getActiveEventId();
-  let st;
-  if(studentId){ st = db.prepare('SELECT * FROM students WHERE id=?').get(Number(studentId)); }
-  else {
-    st = db.prepare('SELECT * FROM students WHERE cedula=?').get(String(cedula));
-    if(!st){ const info = db.prepare('INSERT INTO students(cedula, nombre, grupo, created_at) VALUES(?,?,?,?)').run(String(cedula), nombre || 'Sin nombre', grupo||null, nowISO()); st = db.prepare('SELECT * FROM students WHERE id=?').get(info.lastInsertRowid); }
-  }
-  if(!st) return res.status(404).json({ error: 'Estudiante no encontrado' });
-  const existing = db.prepare('SELECT * FROM attendance WHERE event_id=? AND student_id=? AND salida_at IS NULL').get(eventId, st.id);
-  if(existing){ return res.json({ ok: true, message: 'Ingreso ya registrado (presente)', student: st, attendanceId: existing.id }); }
-  const info = db.prepare('INSERT INTO attendance(student_id, event_id, ingreso_at) VALUES(?,?,?)').run(st.id, eventId, nowISO());
-  res.json({ ok: true, message: 'Ingreso registrado', student: st, attendanceId: info.lastInsertRowid });
-});
-app.post('/api/attendance/checkout', authRequired, (req, res) => {
-  const { cedula, studentId } = req.body || {};
-  if(!cedula && !studentId) return res.status(400).json({ error: 'cedula o studentId requerido' });
-  const eventId = getActiveEventId();
-  let st;
-  if(studentId){ st = db.prepare('SELECT * FROM students WHERE id=?').get(Number(studentId)); }
-  else { st = db.prepare('SELECT * FROM students WHERE cedula=?').get(String(cedula)); }
-  if(!st) return res.status(404).json({ error: 'Estudiante no encontrado' });
-  const att = db.prepare('SELECT * FROM attendance WHERE event_id=? AND student_id=? AND salida_at IS NULL ORDER BY ingreso_at DESC LIMIT 1').get(eventId, st.id);
-  if(!att) return res.status(404).json({ error: 'No hay ingreso activo para registrar salida' });
-  db.prepare('UPDATE attendance SET salida_at=? WHERE id=?').run(nowISO(), att.id);
-  res.json({ ok: true, message: 'Salida registrada', student: st, attendanceId: att.id });
-});
+
+
 app.delete('/api/attendance/:id', authRequired, requireCanDelete, (req,res)=>{
   const id = Number(req.params.id);
   db.prepare('DELETE FROM attendance WHERE id=?').run(id);
