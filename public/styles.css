@@ -27,6 +27,11 @@ main{ padding:16px; max-width:1200px; margin:0 auto; }
 @media (max-width: 768px){
   .grid-2{ grid-template-columns: 1fr; }
 
+  /* Reducir tamaño de fuente en tarjetas del dashboard */
+  .card .value {
+    font-size: 22px;
+  }
+
   /* Transformar tabla a formato de tarjetas en móviles */
   table {
     border: none;
