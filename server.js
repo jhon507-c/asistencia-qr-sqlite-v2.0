@@ -235,7 +235,7 @@ app.post('/api/attendance/ingreso', authRequired, (req, res) => {
     const { cedula } = req.body;
     if (!cedula) return res.status(400).json({ error: 'Cédula es requerida' });
 
-    const activeEvent = db.prepare('SELECT * FROM events WHERE is_active = 1').get();
+    const activeEvent = db.prepare('SELECT * FROM events WHERE activo = 1').get();
     if (!activeEvent) return res.status(400).json({ error: 'No hay un evento activo' });
 
     const student = db.prepare('SELECT id, nombre FROM students WHERE cedula = ?').get(cedula);
@@ -261,7 +261,7 @@ app.post('/api/attendance/salida', authRequired, (req, res) => {
     const { cedula } = req.body;
     if (!cedula) return res.status(400).json({ error: 'Cédula es requerida' });
 
-    const activeEvent = db.prepare('SELECT * FROM events WHERE is_active = 1').get();
+    const activeEvent = db.prepare('SELECT * FROM events WHERE activo = 1').get();
     if (!activeEvent) return res.status(400).json({ error: 'No hay un evento activo' });
 
     const student = db.prepare('SELECT id, nombre FROM students WHERE cedula = ?').get(cedula);
