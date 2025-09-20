@@ -71,6 +71,11 @@ const requireCanDelete = (req, res, next) => {
   res.status(403).json({ error: 'No tienes permiso para borrar' });
 };
 
+function getActiveEventId() {
+  const event = db.prepare('SELECT id FROM events WHERE activo = 1').get();
+  return event ? event.id : null;
+}
+
 // --- Rutas de Autenticación ---
 app.post('/api/auth/login', async (req, res) => {
   try {

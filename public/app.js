@@ -205,6 +205,65 @@ document.getElementById('btn-guardar-estudiante')?.addEventListener('click', asy
   }
 });
 
+// --- Eventos ---
+const tablaEventos = document.getElementById('tabla-eventos');
+
+async function loadEvents() {
+  if (!tablaEventos) return;
+  try {
+    const events = await api('/api/events');
+    tablaEventos.innerHTML = events.map(ev => `
+      <tr>
+        <td data-label="Nombre">${ev.nombre}</td>
+        <td data-label="Fecha">${new Date(ev.fecha).toLocaleDateString()}</td>
+        <td data-label="Estado">
+          ${ev.activo 
+            ? '<span class="badge active">Activo</span>' 
+            : `<button data-action="activate" data-id="${ev.id}" class="secondary small">Activar</button>`
+          }
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    console.error('Error al cargar eventos:', e);
+    tablaEventos.innerHTML = '<tr><td colspan="3">Error al cargar eventos.</td></tr>';
+  }
+}
+
+document.getElementById('btn-crear-evento')?.addEventListener('click', async () => {
+  const nombre = document.getElementById('ev-nombre').value;
+  const fecha = document.getElementById('ev-fecha').value;
+  if (!nombre) {
+    alert('El nombre del evento es requerido.');
+    return;
+  }
+  try {
+    await api('/api/events', { method: 'POST', body: JSON.stringify({ nombre, fecha }) });
+    document.getElementById('ev-nombre').value = '';
+    document.getElementById('ev-fecha').value = '';
+    loadEvents();
+    refreshHeader(); // Actualiza el header para mostrar el nuevo evento activo si se activa
+  } catch (e) {
+    alert('Error al crear el evento: ' + e.message);
+  }
+});
+
+tablaEventos?.addEventListener('click', async (e) => {
+  const target = e.target.closest('button');
+  if (!target || target.dataset.action !== 'activate') return;
+
+  const id = target.dataset.id;
+  if (confirm('¿Seguro que quieres activar este evento? Todos los demás se desactivarán.')) {
+    try {
+      await api(`/api/events/${id}`, { method: 'PUT', body: JSON.stringify({ activo: true }) });
+      loadEvents();
+      refreshHeader(); // Actualiza el header para mostrar el nuevo evento activo
+    } catch (e) {
+      alert('Error al activar el evento: ' + e.message);
+    }
+  }
+});
+
 
 // --- Usuarios (solo superadmin) ---
 const tablaUsuarios = document.getElementById('tabla-usuarios');
