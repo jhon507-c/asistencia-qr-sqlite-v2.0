@@ -358,28 +358,29 @@ app.get('/api/attendance/list', authRequired, (req, res) => {
 
 app.get('/api/stats/students-by-group', authRequired, (req, res) => {
   const rows = db.prepare(`
-    SELECT grupo, COUNT(id) as total 
+    SELECT COALESCE(grupo, 'Sin Grupo') as grupo, COUNT(id) as total 
     FROM students 
-    WHERE grupo IS NOT NULL AND grupo != '' 
-    GROUP BY grupo ORDER BY grupo
+    GROUP BY COALESCE(grupo, 'Sin Grupo') 
+    ORDER BY grupo
   `).all();
   res.json(rows);
 });
 
 app.get('/api/stats/attendance-by-group', authRequired, (req, res) => {
-  const eventId = getActiveEventId();
-  if (!eventId) return res.json([]);
+  const activeEvent = db.prepare('SELECT id FROM events WHERE activo = 1').get();
+  if (!activeEvent) return res.json([]);
+
+  const eventId = activeEvent.id;
 
   const rows = db.prepare(`
     SELECT 
-      s.grupo, 
+      COALESCE(s.grupo, 'Sin Grupo') as grupo, 
       COUNT(s.id) as total,
       SUM(CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END) as presentes
     FROM students s
     LEFT JOIN attendance a ON s.id = a.student_id AND a.event_id = ?
-    WHERE s.grupo IS NOT NULL AND s.grupo != ''
-    GROUP BY s.grupo
-    ORDER BY s.grupo
+    GROUP BY COALESCE(s.grupo, 'Sin Grupo')
+    ORDER BY grupo
   `).all(eventId);
 
   const result = rows.map(r => ({
