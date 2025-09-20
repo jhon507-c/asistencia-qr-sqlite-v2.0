@@ -82,6 +82,7 @@ tr:last-child td{ border-bottom:none; }
   cursor: pointer;
   padding: 0;
   line-height: 1;
+  color: #16a34a; /* Color verde para el icono */
 }
 .modal-body {
   padding: 1rem;
