@@ -316,6 +316,7 @@ app.delete('/api/attendance/:id', authRequired, requireCanDelete, (req,res)=>{
 
 // --- Stats / Dashboard ---
 app.get('/api/attendance/stats', authRequired, (req, res) => {
+  ensureActiveEvent(); // Asegura que haya un evento activo
   const total = db.prepare('SELECT COUNT(id) as total FROM students').get().total;
   const activeEvent = db.prepare('SELECT id FROM events WHERE activo = 1').get();
   
@@ -338,6 +339,7 @@ app.get('/api/attendance/stats', authRequired, (req, res) => {
 });
 
 app.get('/api/attendance/list', authRequired, (req, res) => {
+  ensureActiveEvent(); // Asegura que haya un evento activo
   const eventId = getActiveEventId();
   if (!eventId) return res.json([]);
   
@@ -372,6 +374,7 @@ app.get('/api/stats/students-by-group', authRequired, (req, res) => {
 });
 
 app.get('/api/stats/attendance-by-group', authRequired, (req, res) => {
+  ensureActiveEvent(); // Asegura que haya un evento activo
   const activeEvent = db.prepare('SELECT id FROM events WHERE activo = 1').get();
   if (!activeEvent) return res.json([]);
 
